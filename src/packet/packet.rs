@@ -1,6 +1,7 @@
-use bytes::Buf;
+use bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::Decoder;
 
+#[derive(Debug)]
 pub enum Packet {
     Connect,
     Connack,
@@ -99,7 +100,7 @@ fn decode_remaining_length(bytes: &[u8]) -> std::io::Result<(u32, u64)> {
 
 #[cfg(test)]
 mod tests {
-    use super::decode_remaining_length;
+    use super::*;
 
     #[test]
     fn decode_to_64() {
@@ -113,5 +114,49 @@ mod tests {
         let src: [u8; 2] = [193, 2];
         let decoded_value = decode_remaining_length(&src).unwrap();
         assert_eq!(decoded_value, (321, 2));
+    }
+
+    #[test]
+    fn encode_64() {
+        let mut buf = BytesMut::with_capacity(1);
+        encode_property_length(64, &mut buf);
+        let mut expected = BytesMut::with_capacity(1);
+        expected.put_u8(64);
+        assert_eq!(expected, buf);
+    }
+
+    #[test]
+    fn encode_321() {
+        let mut buf = BytesMut::with_capacity(2);
+        let mut expected = BytesMut::with_capacity(2);
+        expected.put_u8(193);
+        expected.put_u8(2);
+        encode_property_length(321, &mut buf);
+        assert_eq!(expected, buf);
+    }
+}
+
+pub struct FixedHeader {
+    packet_type: Packet,
+    flags: u8,
+    remaining_length: u32,
+}
+
+pub struct VariableHeader {
+    packet_id: Option<u16>,
+}
+
+fn encode_property_length(len: u32, dest: &mut BytesMut) {
+    let mut value = len;
+    loop {
+        let mut encoded_byte = (value % 128) as u8;
+        value /= 128;
+        if value > 0 {
+            encoded_byte = encoded_byte | 0x80;
+            dest.put_u8(encoded_byte);
+        } else {
+            dest.put_u8(encoded_byte);
+            break;
+        }
     }
 }

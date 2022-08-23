@@ -1,5 +1,6 @@
 use mqtt::packet;
 
 fn main() {
-    println!("Hello world!")
+    let p = packet::packet::Packet::Connect;
+    println!("P: {:?}", p);
 }
